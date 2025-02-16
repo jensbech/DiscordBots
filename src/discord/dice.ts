@@ -5,16 +5,21 @@ export const Dice = {
 	Twelve: 12,
 	Twenty: 20,
 	Hundrer: 100,
-} as const;
+};
+
+export enum Critical {
+	Fail = "fail",
+	Success = "success",
+}
 
 type User = {
 	Username: string;
 };
 
 export class DiceRoller {
-	private user: User;
-	constructor(user: User) {
-		this.user = user;
+	private username: string;
+	constructor(user: string) {
+		this.username = user;
 	}
 
 	public async roll(
@@ -24,31 +29,36 @@ export class DiceRoller {
 		if (!Object.values(Dice).includes(dice))
 			throw new Error(`Invalid dice type: ${dice}`);
 
-		const { result, special } = this.getOutcome(dice, mod);
+		const { result, crit } = this.getOutcome(dice, mod);
 
-		if (special.fail || special.crit) {
-			return { result, message: await this.handleSpecial(special) };
+		if (crit.failure || crit.success) {
+			return {
+				result,
+				message: crit.success
+					? await this.handleCritical(Critical.Success)
+					: await this.handleCritical(Critical.Fail),
+			};
 		}
-
-		//
 		return { result };
 	}
 
 	private getOutcome(
 		dice: (typeof Dice)[keyof typeof Dice],
 		mod: number,
-	): { result: number; special: { fail: boolean; crit: boolean } } {
+	): { result: number; crit: { failure: boolean; success: boolean } } {
 		const roll = Math.floor(Math.random() * dice) + 1;
 		return {
 			result: roll + mod,
-			special: { fail: roll === 1, crit: roll === 20 },
+			crit: { failure: roll === 1, success: roll === 20 },
 		};
 	}
 
-	private async handleSpecial(special: {
-		crit: number;
-		fail: number;
-	}): Promise<string> {
-		return "";
+	private async handleCritical(critical: Critical): Promise<string> {
+		switch (critical) {
+			case Critical.Fail:
+				return "crit!";
+			case Critical.Success:
+				return "fail!";
+		}
 	}
 }

@@ -6,10 +6,11 @@ import {
 	SlashCommandBuilder,
 } from "discord.js";
 import { DiceRoller } from "./dice";
-import { parseDiceNotation } from "./utils";
+import { DiceParseResult, type DiceRollPart, parseDiceNotation } from "./utils";
 
 enum Command {
 	Roll = "roll",
+	Help = "help",
 }
 
 enum MessageContent {
@@ -19,23 +20,26 @@ enum MessageContent {
 const availableCommands = [
 	new SlashCommandBuilder()
 		.setName(Command.Roll)
-		.setDescription("Roll dice (e.g. 'd20', '2d10', 'd12+4'")
+		.setDescription("Roll dice (e.g. 'd20', '6d12-4', '2d8 + 1d6+4')")
 		.addStringOption((option) =>
 			option
 				.setName("input")
 				.setDescription("The dice you want to roll")
 				.setRequired(true),
 		),
+	new SlashCommandBuilder()
+		.setName(Command.Help)
+		.setDescription("Displays a list of available commands."),
 ];
 
 export class BoredBot {
 	private token: string;
-	private clientId: string;
+	private applicationId: string;
 
 	private client: Client;
 	private commands = availableCommands;
 
-	constructor(token: string, clientId: string) {
+	constructor(token: string, applicationId: string) {
 		this.client = new Client({
 			intents: [
 				GatewayIntentBits.Guilds,
@@ -45,7 +49,7 @@ export class BoredBot {
 		});
 
 		this.token = token;
-		this.clientId = clientId;
+		this.applicationId = applicationId;
 	}
 
 	private async login(token: string) {
@@ -97,25 +101,80 @@ export class BoredBot {
 	public async initialize() {
 		try {
 			await this.login(this.token);
-
-			await this.registerCommands(this.token, this.clientId);
+			await this.registerCommands(this.token, this.applicationId);
 			await this.setupListeners();
 		} catch (error) {
 			console.log(error);
 		}
 	}
 
-	private async handleRollCommand(inputValue: string, username: string) {
-		console.log("Received roll input", inputValue);
+	private async handleRollCommand(
+		inputStringFromUser: string,
+		username: string,
+	): Promise<string> {
+		let parsedInputResult: DiceParseResult = { dices: [], mod: 0 };
 
-		// todo support several rolls in one call
 		try {
-			const { base, mod } = parseDiceNotation(inputValue);
-			const roller = new DiceRoller(username);
-			const { result, message } = await roller.roll(base, mod);
-			return "ok";
+			parsedInputResult = parseDiceNotation(inputStringFromUser);
 		} catch (error) {
-			return "error!";
+			if (error instanceof Error) return error.message;
 		}
+
+		const roller = new DiceRoller(username);
+		const resultsMessages: string[] = [];
+
+		if (parsedInputResult.dices.length === 1) {
+			const singleDie = parsedInputResult.dices[0];
+			const { rollResult, message } = await roller.roll(singleDie);
+
+			const mod = parsedInputResult.mod;
+			const finalResult = rollResult + mod;
+
+			let singleLine = `(${singleDie.toString()}) => ${rollResult}`;
+			if (mod !== 0) {
+				const sign = mod > 0 ? "+" : "-";
+				singleLine += ` ${sign}${Math.abs(mod)} = ${finalResult}`;
+			}
+
+			if (message) {
+				singleLine += `\n${message}`;
+			}
+
+			resultsMessages.push(singleLine);
+		} else {
+			resultsMessages.push(
+				`You rolled ${parsedInputResult.dices.length} dice!`,
+			);
+
+			let sum = 0;
+			let rollCount = 1;
+
+			for (const dieInput of parsedInputResult.dices) {
+				const { rollResult, message } = await roller.roll(dieInput);
+				sum += rollResult;
+
+				const prefix = `Roll #${rollCount}: `;
+				const suffix = message ? ` **${message}**` : "";
+
+				resultsMessages.push(
+					`${prefix}(d${dieInput.toString()}) => ${rollResult}${suffix}`,
+				);
+				rollCount++;
+			}
+
+			const mod = parsedInputResult.mod;
+			const finalResult = sum + mod;
+			if (mod !== 0) {
+				const sign = mod > 0 ? "+" : "-";
+
+				resultsMessages.push(
+					`Result: ${sum} ${sign} ${Math.abs(mod)} = ${finalResult}`,
+				);
+			} else {
+				resultsMessages.push(`**Final result: ${sum}**`);
+			}
+		}
+
+		return resultsMessages.join("\n");
 	}
 }

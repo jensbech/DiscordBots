@@ -24,41 +24,46 @@ export class DiceRoller {
 
 	public async roll(
 		dice: (typeof Dice)[keyof typeof Dice],
-		mod: number,
-	): Promise<{ result: number; message?: string }> {
+	): Promise<{ rollResult: number; message?: string }> {
 		if (!Object.values(Dice).includes(dice))
 			throw new Error(`Invalid dice type: ${dice}`);
 
-		const { result, crit } = this.getOutcome(dice, mod);
+		const { outcome: result, crit } = this.getSingleDiceRollOutcome(dice);
 
 		if (crit.failure || crit.success) {
 			return {
-				result,
+				rollResult: result,
 				message: crit.success
 					? await this.handleCritical(Critical.Success)
 					: await this.handleCritical(Critical.Fail),
 			};
 		}
-		return { result };
+		return { rollResult: result };
 	}
 
-	private getOutcome(
-		dice: (typeof Dice)[keyof typeof Dice],
-		mod: number,
-	): { result: number; crit: { failure: boolean; success: boolean } } {
+	private getSingleDiceRollOutcome(dice: (typeof Dice)[keyof typeof Dice]): {
+		outcome: number;
+		crit: { failure: boolean; success: boolean };
+	} {
 		const roll = Math.floor(Math.random() * dice) + 1;
-		return {
-			result: roll + mod,
-			crit: { failure: roll === 1, success: roll === 20 },
-		};
+
+		switch (dice) {
+			case Dice.Twenty:
+				return {
+					outcome: roll,
+					crit: { failure: roll === 1, success: roll === 20 },
+				};
+			default:
+				return { outcome: roll, crit: { failure: false, success: false } };
+		}
 	}
 
 	private async handleCritical(critical: Critical): Promise<string> {
 		switch (critical) {
 			case Critical.Fail:
-				return "crit!";
+				return "Critical FAIL!";
 			case Critical.Success:
-				return "fail!";
+				return "Critical SUCCESS!";
 		}
 	}
 }

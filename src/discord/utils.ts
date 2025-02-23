@@ -1,31 +1,54 @@
-interface DiceRollResult {
-	base: number;
+export interface DiceParseResult {
+	dices: number[];
 	mod: number;
 }
 
-export function parseDiceNotation(input: string): DiceRollResult {
-	if (!input || typeof input !== "string") {
+export function parseDiceNotation(input: string): DiceParseResult {
+	if (typeof input !== "string" || !input.trim()) {
 		throw new Error("Input must be a non-empty string.");
 	}
-	let cleaned = input.toLowerCase().trim();
-	cleaned = cleaned.replace(/\b(roll|dice|die)\b/g, "");
-	cleaned = cleaned.replace(/\s+/g, "");
-	const diceRegex = /^(\d*)d(\d+)([+\-]\d+)?$/;
-	const match = cleaned.match(diceRegex);
-	if (!match) {
+
+	let clean = input.toLowerCase().trim();
+	clean = clean.replace(/\b(roll|dice|die)\b/g, "");
+	clean = clean.replace(/\s+/g, "");
+
+	const tokenRegex = /(\d*d\d+|[+\-]\d+)/g;
+	const tokens = clean.match(tokenRegex);
+
+	if (!tokens) {
 		throw new Error(
-			"Unable to parse dice notation. Please use a format like 'd20', '2d10', or 'd12+4'.",
+			"Unable to parse any dice or modifiers. Examples: '3d6+5', 'd20-2', '2d8+1d6+4'.",
 		);
 	}
-	const count = match[1] ? Number.parseInt(match[1], 10) : 1;
-	const sides = Number.parseInt(match[2], 10);
-	const mod = match[3] ? Number.parseInt(match[3], 10) : 0;
-	if (Number.isNaN(count) || count <= 0) {
-		throw new Error("Dice count must be a positive integer.");
+
+	const dice: number[] = [];
+	let mod = 0;
+
+	for (const token of tokens) {
+		if (token.includes("d")) {
+			const [countPart, sidesPart] = token.split("d");
+
+			let diceCount = countPart ? Number.parseInt(countPart, 10) : 1;
+			if (Number.isNaN(diceCount) || diceCount < 1) {
+				diceCount = 1;
+			}
+
+			const sides = Number.parseInt(sidesPart, 10);
+			if (Number.isNaN(sides) || sides <= 0) {
+				throw new Error(`Invalid number of sides: "${sidesPart}"`);
+			}
+
+			for (let i = 0; i < diceCount; i++) {
+				dice.push(sides);
+			}
+		} else {
+			const parsedMod = Number.parseInt(token, 10);
+			if (Number.isNaN(parsedMod)) {
+				throw new Error(`Invalid modifier: "${token}"`);
+			}
+			mod += parsedMod;
+		}
 	}
-	if (Number.isNaN(sides) || sides <= 0) {
-		throw new Error("Number of sides must be a positive integer.");
-	}
-	const base = sides;
-	return { base, mod };
+
+	return { dices: dice, mod };
 }

@@ -1,84 +1,35 @@
-import {
-	Client,
-	GatewayIntentBits,
-	REST,
-	Routes,
-	SlashCommandBuilder,
-} from "discord.js";
-import { DiceRoller } from "./dice";
-import { DiceParseResult, type DiceRollPart, parseDiceNotation } from "./utils";
+import type { SlashCommandOptionsOnlyBuilder } from "discord.js";
+import { DiceRoller } from "../diceRoller";
+import type { DiceParseResult } from "../diceRoller/types";
+import { parseDiceUserInput } from "../diceRoller/utils/parseDiceUserInput";
+import { DiscordBot } from "../discordBot";
+import { Command, MessageContent } from "../discordBot/types";
 
-enum Command {
-	Roll = "roll",
-	Help = "help",
-}
+export class BoredBot extends DiscordBot {
+	private static instance: BoredBot;
 
-enum MessageContent {
-	Input = "input",
-}
-
-const availableCommands = [
-	new SlashCommandBuilder()
-		.setName(Command.Roll)
-		.setDescription("Roll dice (e.g. 'd20', '6d12-4', '2d8 + 1d6+4')")
-		.addStringOption((option) =>
-			option
-				.setName("input")
-				.setDescription("The dice you want to roll")
-				.setRequired(true),
-		),
-	new SlashCommandBuilder()
-		.setName(Command.Help)
-		.setDescription("Displays a list of available commands."),
-];
-
-export class BoredBot {
-	private token: string;
-	private applicationId: string;
-
-	private client: Client;
-	private commands = availableCommands;
-
-	constructor(token: string, applicationId: string) {
-		this.client = new Client({
-			intents: [
-				GatewayIntentBits.Guilds,
-				GatewayIntentBits.GuildMessages,
-				GatewayIntentBits.MessageContent,
-			],
-		});
-
-		this.token = token;
-		this.applicationId = applicationId;
+	private constructor(
+		token: string,
+		applicationId: string,
+		commands: SlashCommandOptionsOnlyBuilder[],
+	) {
+		super(token, applicationId, commands);
+		this.useCommand();
 	}
 
-	private async login(token: string) {
-		if (!token) {
-			throw new Error("No token provided when attempting to log in bot");
+	public static async getInstance(
+		token: string,
+		applicationId: string,
+		commands: SlashCommandOptionsOnlyBuilder[],
+	): Promise<BoredBot> {
+		if (!BoredBot.instance) {
+			BoredBot.instance = new BoredBot(token, applicationId, commands);
+			await BoredBot.instance.initialize("Bored Bot");
 		}
-		try {
-			this.client.login(token);
-		} catch (error) {
-			throw new Error(`Bot failed to log in: ${error}`);
-		}
+		return BoredBot.instance;
 	}
 
-	private async registerCommands(token: string, clientId: string) {
-		const rest = new REST({ version: "10" }).setToken(token);
-		try {
-			await rest.put(Routes.applicationCommands(clientId), {
-				body: this.commands,
-			});
-		} catch (error) {
-			throw new Error(`Failed to register slash commands: ${error}`);
-		}
-	}
-
-	private async setupListeners() {
-		this.client.once("ready", () => {
-			console.log(`Logged in as '${this.client.user?.tag}'`);
-		});
-
+	private async useCommand() {
 		this.client.on("interactionCreate", async (interaction) => {
 			if (!interaction.isChatInputCommand()) return;
 
@@ -87,6 +38,8 @@ export class BoredBot {
 			const userInput = interaction.options.getString(MessageContent.Input);
 
 			if (!userInput) throw new Error("Expected input to be defined");
+
+			console.log("got command");
 
 			switch (command) {
 				case Command.Roll: {
@@ -98,16 +51,6 @@ export class BoredBot {
 		});
 	}
 
-	public async initialize() {
-		try {
-			await this.login(this.token);
-			await this.registerCommands(this.token, this.applicationId);
-			await this.setupListeners();
-		} catch (error) {
-			console.log(error);
-		}
-	}
-
 	private async handleRollCommand(
 		inputStringFromUser: string,
 		username: string,
@@ -115,7 +58,7 @@ export class BoredBot {
 		let parsedInputResult: DiceParseResult = { dices: [], mod: 0 };
 
 		try {
-			parsedInputResult = parseDiceNotation(inputStringFromUser);
+			parsedInputResult = parseDiceUserInput(inputStringFromUser);
 		} catch (error) {
 			if (error instanceof Error) return error.message;
 		}

@@ -1,9 +1,8 @@
-export interface DiceParseResult {
-	dices: number[];
-	mod: number;
-}
+import { Dice } from "../types";
 
-export function parseDiceNotation(input: string): DiceParseResult {
+const ALLOWED_DICE_SIDES = new Set(Object.values(Dice));
+
+export function parseDiceUserInput(input: string): DiceParseResult {
 	if (typeof input !== "string" || !input.trim()) {
 		throw new Error("Input must be a non-empty string.");
 	}
@@ -11,6 +10,16 @@ export function parseDiceNotation(input: string): DiceParseResult {
 	let clean = input.toLowerCase().trim();
 	clean = clean.replace(/\b(roll|dice|die)\b/g, "");
 	clean = clean.replace(/\s+/g, "");
+
+	if (/^\d+$/.test(clean)) {
+		const sides = Number.parseInt(clean, 10);
+		if (!ALLOWED_DICE_SIDES.has(sides)) {
+			throw new Error(
+				`Allowed dice sides are ${[...ALLOWED_DICE_SIDES].join(", ")}. Received: ${sides}`,
+			);
+		}
+		return { dices: [sides], mod: 0 };
+	}
 
 	const tokenRegex = /(\d*d\d+|[+\-]\d+)/g;
 	const tokens = clean.match(tokenRegex);
@@ -21,7 +30,7 @@ export function parseDiceNotation(input: string): DiceParseResult {
 		);
 	}
 
-	const dice: number[] = [];
+	const dices: number[] = [];
 	let mod = 0;
 
 	for (const token of tokens) {
@@ -38,8 +47,14 @@ export function parseDiceNotation(input: string): DiceParseResult {
 				throw new Error(`Invalid number of sides: "${sidesPart}"`);
 			}
 
+			if (!ALLOWED_DICE_SIDES.has(sides)) {
+				throw new Error(
+					`Allowed dice sides are ${[...ALLOWED_DICE_SIDES].join(", ")}. Received: ${sides}`,
+				);
+			}
+
 			for (let i = 0; i < diceCount; i++) {
-				dice.push(sides);
+				dices.push(sides);
 			}
 		} else {
 			const parsedMod = Number.parseInt(token, 10);
@@ -50,5 +65,5 @@ export function parseDiceNotation(input: string): DiceParseResult {
 		}
 	}
 
-	return { dices: dice, mod };
+	return { dices, mod };
 }

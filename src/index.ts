@@ -1,11 +1,10 @@
 import { Elysia } from "elysia";
-import { BoredBot } from "./discord";
+import { BoredBot } from "./boredBot";
+import { boredBotCommands } from "./boredBot/commands";
 
 const app = new Elysia().get("/", () => "Hello Elysia").listen(3000);
 
-// const token = process.env.BORED_BOT_DISCORD_TOKEN as string;
 const token = "";
 const applicationId = "";
-const bot = new BoredBot(token, applicationId);
 
-await bot.initialize();
+await BoredBot.getInstance(token, applicationId, boredBotCommands);

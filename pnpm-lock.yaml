@@ -12,11 +12,11 @@ importers:
         specifier: ^14.18.0
         version: 14.18.0
       elysia:
-        specifier: latest
+        specifier: ^1.2.25
         version: 1.2.25(@sinclair/typebox@0.34.33)
     devDependencies:
       bun-types:
-        specifier: latest
+        specifier: ^1.2.9
         version: 1.2.9
 
 packages:
